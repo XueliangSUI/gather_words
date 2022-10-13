@@ -2,14 +2,21 @@ import React, { Component, createRef, useRef } from "react"
 // import ReactDOM from "react-dom"
 import { TableBody, Header } from './Table'
 import _, { create, divide } from "lodash";
-// import html2canvas from "html2canvas";
-// import Canvas2Image from "canvas2image"
+import { Button, Alert, Snackbar, Grid } from '@mui/material';
+
 import $ from 'jquery'
 // import jsPDF from "jspdf";
 import "./style.css"
-// import FileSaver from "file-saver";
-// import { saveAs } from 'file-saver';
 import "./jquery.wordexport"
+
+import { copyToClipboard } from "./util"
+
+const GLOBAL = {
+  momo: "momo",
+  shanbei: "shanbei",
+  bubei: "bubei",
+  baicizhan: "baicizhan"
+}
 
 var paper = {
   width: 595.28, height: 841.89
@@ -21,132 +28,84 @@ var padding = {
   b: 20
 }
 
-
-// function exportReportTemplet() {
-
-//   var element = document.getElementById("print")
-//   setTimeout(() => {
-
-
-//     var w = element.offsetWidth;    // 获得该容器的宽
-//     var h = element.clientHeight;    // 获得该容器的高
-//     console.log(element, w, h)
-//     // var offsetTop = element.offset().top;    // 获得该容器到文档顶部的距离
-//     // var offsetLeft = element.offset().left;    // 获得该容器到文档最左的距离
-//     var canvas = document.createElement("canvas");
-//     canvas.width = w;    // 将画布宽&&高放大两倍
-//     canvas.height = h;
-//     var context = canvas.getContext("2d");
-//     var scale = 1;
-//     context.scale(1, 1);
-//     //  context.translate(-offsetLeft - abs, -offsetTop);
-
-//     var opts = {
-//       scale: scale,
-//       canvas: canvas,
-//       width: w,
-//       height: h,
-//       useCORS: true,
-//       background: '#FFF'
-//     }
-//     console.log(element, opts)
-
-//     html2canvas(element, opts).then(function (canvas) {
-//       // allowTaint: false;
-//       // taintTest: false;
-//       console.log(element)
-//       var contentWidth = canvas.width;
-//       var contentHeight = canvas.height;
-//       //一页pdf显示html页面生成的canvas高度;
-//       var pageHeight = contentWidth / 592.28 * 841.89;
-//       //未生成pdf的html页面高度
-//       var leftHeight = contentHeight;
-//       //页面偏移
-//       var position = 0;
-//       //a4纸的尺寸[595.28,841.89]，html页面生成的canvas在pdf中图片的宽高
-//       var imgWidth = paper.width;
-//       var imgHeight = 592.28 / contentWidth * contentHeight;
-
-//       var pageData = canvas.toDataURL('image/jpeg', 1.0);
-//       //   var oCanvas = document.getElementById("print");
-//       // Canvas2Image.saveAsJPEG(oCanvas);
-//       var pdf = new jsPDF('', 'pt', 'a4');
-
-//       //有两个高度需要区分，一个是html页面的实际高度，和生成pdf的页面高度(841.89)
-//       //当内容未超过pdf一页显示的范围，无需分页
-//       if (leftHeight < pageHeight) {
-//         pdf.addImage(pageData, 'JPEG', 0, 0, imgWidth, imgHeight);
-//       } else {    // 分页
-//         while (leftHeight > 0) {
-//           pdf.addImage(pageData, 'JPEG', 0, position, imgWidth, imgHeight)
-//           leftHeight -= pageHeight;
-//           position -= paper.height;
-//           //避免添加空白页
-//           if (leftHeight > 0) {
-//             pdf.addPage();
-//           }
-//         }
-//       }
-//       pdf.save('销售合同.pdf');
-//     })
-//   }, 0);
-// }
-
-
+const dictionaryTypeOption = {
+  youdao: "youdao",
+  eudic: "eudic"
+}
 
 class App extends Component {
 
   constructor(props) {
     super(props)
     this.printRef = createRef()
+    this.alertRef = createRef()
   }
   state = {
     wordsArr: [],
-    note: "produced by theonlyobserver / 唯一的观测者"
+    note: "produced by theonlyobserver / 唯一的观测者",
+    dictionaryType: dictionaryTypeOption.youdao,
+    alert: {
+      show: false,
+      msg: ""
+    }
+
   }
 
-  // pagination() {
-  //   setTimeout(() => {
-  //     let trs = this.printRef.current.children[0].children[0].children
-  //     for (let tr of trs) {
-  //       console.log(tr, tr.offsetTop)
-  //       let placeholderHeight = paper.height - tr.offsetTop % paper.height
-  //       if (placeholderHeight < 30) {
-  //         console.log("need placeholder")
-  //         let placeholder = document.createElement("div")
-  //         placeholder.style.height = placeholderHeight + "px"
-  //         placeholder.style.width = 1 + "px"
-  //         tr.children[0].append(placeholder)
-  //       }
-
-  //     }
-
-  //   }, 0);
-
-
-
-  // }
-
+  chooseDictionaryType(type, e,) {
+    console.log(e, type)
+    this.setState({
+      dictionaryType: type
+    })
+  }
   readFile = (e) => {
     let that = this
     let file = document.querySelector('#file').files[0];
-
-
     var reader = new FileReader();
-    reader.readAsText(file);
+    if (this.state.dictionaryType === dictionaryTypeOption.youdao) {
+      reader.readAsText(file);
+      reader.onload = function () {
+        that.setState({
+          wordsArr: that.formatWordsYoudao(this.result)
+        }, () => {
 
-    reader.onload = function () {
-      that.setState({
-        wordsArr: that.formatWords(this.result)
-      }, () => {
-        // file.wordExport("111")
-        setTimeout(() => { $("#print").wordExport(_.get(that.state.wordsArr, ["0", "tags"], "words")) }, 0)
-      }
-      )
-    };
+        }
+        )
+      };
+    } else if (this.state.dictionaryType === dictionaryTypeOption.eudic) {
+      reader.readAsText(file, 'utf-8');
+      reader.onload = function () {
+        let domparser = new DOMParser()
+        let htmlDOM = domparser.parseFromString(reader.result, "text/html")
+        let tbody = htmlDOM.querySelector("tbody")
+        let trArr = tbody.querySelectorAll("tr")
+        let wordObjArr = []
+        _.map(trArr, (trItem, trIndex) => {
+          let tdArr = trItem.querySelectorAll("td")
+          let sliceEnd = tdArr[3].querySelector(".expDiv").innerHTML.indexOf("<br><br>")
+          let translation = tdArr[3].querySelector(".expDiv").innerHTML.replace(/&gt;/g, ">").replace(/&lt;/g, "<")
+          if (sliceEnd > -1) {
+            translation = tdArr[3].querySelector(".expDiv").innerHTML.slice(0, sliceEnd)
+          }
+          let wordObj = {
+            id: trIndex + 1,
+            word: tdArr[1].innerHTML,
+            phonetic: tdArr[2].innerHTML,
+            transArr: translation.replace(/&gt;/g, ">").replace(/&lt;/g, "<").split("<br>")
+          }
+          wordObjArr.push(wordObj)
+        })
+        that.setState({
+          wordsArr: wordObjArr
+        }, () => {
+
+        }
+        )
+      };
+    }
+
   }
 
-  formatWords = (words) => {
+  formatWordsYoudao = (words) => {
     let removeRepeatWordAndTranslationFlag = document.getElementById("removeRepeatWordAndTranslation").checked
     let sliceTranslationCount = document.getElementById("sliceTranslation").value
     let wordStringArr = words.split("<item>")
@@ -196,51 +155,161 @@ class App extends Component {
     return wordsArr
   };
 
+  csvJSON(csv) {
+    var lines = csv.split("\n");
+    var result = [];
+    var headers = lines[0].split(",");
+    for (var i = 1; i < lines.length; i++) {
+      var obj = {};
+      var currentline = lines[i].split(",");
+      for (var j = 0; j < headers.length; j++) {
+        obj[headers[j]] = currentline[j];
+      }
+      result.push(obj);
+    }
+
+    return result;
+  }
+
+
   handelChange = (event) => {
     this.setState({ note: event.target.value })
   };
 
   removeRepeatWordAndTranslation = (translation, word) => {
-    let sliceEnd = translation.indexOf(word)
+    let sliceEnd = translation.toLowerCase().indexOf(word.toLowerCase())
     if (sliceEnd > -1) {
       translation = translation.slice(0, sliceEnd)
     }
     return translation
   }
 
+  exportToWord() {
+    if (this.state.dictionaryType === dictionaryTypeOption.youdao) {
+      setTimeout(() => { $("#print").wordExport(_.get(this.state.wordsArr, ["0", "tags"], "words")) }, 0)
+    } else if (this.state.dictionaryType === dictionaryTypeOption.eudic) {
+      var fileName = $("#file").val();
+      var strFileName = fileName.substring(fileName.lastIndexOf("\\") + 1).slice(0, -5);
+      setTimeout(() => { $("#print").wordExport(strFileName || "word") }, 0)
+    }
+  }
+
+  // 导出到墨墨/不背单词。从整理好的单词对象数组中仅获取单词
+  exportToVocabularyApps = (list, appName) => {
+    if (appName === GLOBAL.momo) {
+      let wordsAsString = _.map(list, (item) => {
+        return _.get(item, "word")
+      }).join("\n")
+      copyToClipboard(wordsAsString)
+      alert("墨墨单词本已复制到剪切板，请直接粘贴使用，例如通过QQ或微信发送给手机。")
+    } else if (appName === GLOBAL.bubei) {
+      let wordsAsString = _.map(list, (item) => {
+        return _.get(item, "word")
+      }).join("\n")
+      copyToClipboard(wordsAsString)
+      alert("不背单词已复制到剪切板，请访问不背单词官网使用。注：不背单词当前不支持小于20个词的单词本")
+    } else if (appName === GLOBAL.shanbei) {
+      let wordsAsString = _.map(list, (item) => {
+        return _.get(item, "word")
+      }).join("\n")
+      copyToClipboard(wordsAsString)
+      alert("扇贝单词已复制到剪切板，请访问扇贝单词官网使用。注：扇贝单词单次至多可导入100个")
+    } else if (appName === GLOBAL.baicizhan) {
+      let wordsAsString = _.map(list, (item) => {
+        return _.get(item, "word")
+      }).join(",")
+      copyToClipboard(wordsAsString)
+      alert("百词斩单词已复制到剪切板，请直接粘贴使用，例如通过QQ或微信发送给手机。")
+    }
+
+  }
+
+
+
+
+
   render() {
-    let note = this.state.note
     return (
       <div className="WordSection1">
-        <h1 className="content">有道词典单词本打印工具——会词2.0</h1>
-        <h1 className="content">可将有道词典单词本中收藏的单词打印为word文档</h1>
-        <div className="content">使用方法：1、打开PC端“网易有道词典”客户端，进入单词本页面，点击上方齿轮图标，在“导入导出”功能中选择“导出单词”</div>
-        <div className="content"><img className="content" src="1.jpg" width={400}></img></div>
-        <div className="content">2、选择导出的文件类型为<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>xml格式</span>，文件名随意。</div>
-        <div className="content"><img className="content" src="2.jpg" width={400}></img></div>
-        <div className="content">3、点击本页面的“选择文件”按钮，选中上一步导出的<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>xml文件</span>，然后即可将单词导出为word文档。</div>
-        <div style={{ background: '#eee' }}>
-          <div className="content" style={{ color: '#aaa' }}>4、可能存在的异常（若无异常请忽略）：
-            <div> 【1】若翻译栏中出现对应的英文单词，需删除该单词（及该单词后多余的翻译）<input type="checkbox" id="removeRepeatWordAndTranslation" /> </div>
-            <div style={{ display: 'flex', justifyContent: "center" }}>
-              <span> 【2】若翻译栏中的文字过多，只想保留指定字符数（会导致翻译内容缺失！） </span>
-              <input type="number" style={{ width: '300px' }} placeholder="输入保留的字符数量" id="sliceTranslation" /></div>
+        <div className="content">
+          <h1 >词典单词本打印及导入背单词app——会词5.0</h1>
+          <h1 >可将有道/欧路词典单词本中收藏的单词打印为word文档或导出至墨墨、扇贝、百词斩、不背等背单词App</h1>
+        </div>
+        <div className="content background_grey">
+          <h5 >一、选择词典类型</h5>
+          <div className="image_flex">
+            <img className={`image_flex_img ${this.state.dictionaryType === dictionaryTypeOption.youdao ? "image_selected" : ""} `} onClick={this.chooseDictionaryType.bind(this, dictionaryTypeOption.youdao)} src="image_youdao_logo.jpg"></img>
+            <img className={`image_flex_img ${this.state.dictionaryType === dictionaryTypeOption.eudic ? "image_selected" : ""} `} onClick={this.chooseDictionaryType.bind(this, dictionaryTypeOption.eudic)} src="image_eudic_logo.jpg"></img>
           </div>
         </div>
-        <div className="content">可添加备注：
-          <input onChange={this.handelChange} value={this.state.note} />
+
+        <div className="content">
+          <h5 >二、从词典中导出指定格式文件</h5>
+          {
+            this.state.dictionaryType === dictionaryTypeOption.youdao ?
+              (<div >
+                <div >使用方法：1、打开PC端“网易有道词典”客户端，进入单词本页面，点击上方齿轮图标，在“导入导出”功能中选择“导出单词”</div>
+                <div ><img src="1.jpg" width={400}></img></div>
+                <div >2、选择导出的文件类型为<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>xml格式</span>，文件名随意。</div>
+                <div ><img src="2.jpg" width={400}></img></div>
+                <div >3、点击本页面最下方的“选择文件”按钮，选中上一步导出的<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>xml文件</span>，然后即可将单词导出为word文档。</div>
+
+
+                <div style={{ color: '#aaa' }}>4、可能存在的异常（若无异常请忽略）：
+                  <div> 【1】若翻译栏中出现对应的英文单词，需删除该单词（及该单词后多余的翻译）<input type="checkbox" id="removeRepeatWordAndTranslation" /> </div>
+
+                  <span> 【2】若翻译栏中的文字过多，只想保留指定字符数（会导致翻译内容缺失！） </span>
+                  <input type="number" style={{ width: '300px' }} placeholder="输入保留的字符数量" id="sliceTranslation" />
+                </div>
+
+              </div>)
+              :
+              (<div >
+                <div >使用方法：1、如图所示，注意导出格式为“HTML”、“简明解释”</div>
+                <div ><img src="image_eudic_step1.jpg" width={1300}></img></div>
+                <div >2、点击本页面最下方的“选择文件”按钮，选中上一步导出的<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>html文件</span>，然后即可将单词导出为word文档。</div>
+
+              </div>
+              )
+          }
         </div>
-        <div className="content">  <input type="file" id="file" onChange={this.readFile} ref="wordsFile" /></div>
+        <div className="content background_grey">
+          <h5 >三、导入上一步导出的文件，并选择导出目的（若有bug / 建议 / 需求请哔哩哔哩私信 唯一的观测者）</h5>
+          <div >
+            <input type="file" id="file" onChange={() => { this.readFile() }} ref="wordsFile" />
+          </div>
+          <div >可添加备注：
+            <input onChange={this.handelChange} value={this.state.note} />
+          </div>
+          <Button variant="contained" onClick={() => { this.exportToWord() }}>
+            导出为word文档
+          </Button>
+
+          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.momo) }}>
+            <img src="momo.webp" className="export_to_logo"></img>导出至墨墨背单词
+          </Button>
+          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.bubei) }}>
+            <img src="bubei.webp" className="export_to_logo"></img> 导出至不背单词
+          </Button>
+          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.shanbei) }}>
+            <img src="shanbei.webp" className="export_to_logo"></img>导出至扇贝单词
+          </Button>
+          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.baicizhan) }}>
+            <img src="baicizhan.webp" className="export_to_logo"></img> 导出至百词斩
+          </Button>
 
 
-
-        <div id="print" ref={this.printRef}>
-          <table border="1" cellSpacing="0" >
-            <Header title={_.get(this.state.wordsArr, ["0", "tags"])} note={this.state.note}></Header>
-            <TableBody id="table" tableData={this.state.wordsArr} paper={paper} printRef={this.printRef} />
-          </table>
         </div>
-      </div>
+        <div className="content ">
+          <h5 >四、在线预览</h5>
+          <div id="print" ref={this.printRef}>
+            <table border="1" cellSpacing="0" >
+              <Header title={_.get(this.state.wordsArr, ["0", "tags"])} note={this.state.note}></Header>
+              <TableBody id="table" tableData={this.state.wordsArr} paper={paper} printRef={this.printRef} />
+            </table>
+          </div>
+        </div>
+      </div >
     )
   }
 }
