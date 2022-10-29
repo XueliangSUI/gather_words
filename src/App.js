@@ -80,11 +80,12 @@ class App extends Component {
         let trArr = tbody.querySelectorAll("tr")
         let wordObjArr = []
         _.map(trArr, (trItem, trIndex) => {
+          console.log(trItem)
           let tdArr = trItem.querySelectorAll("td")
-          let sliceEnd = tdArr[3].querySelector(".expDiv").innerHTML.indexOf("<br><br>")
-          let translation = tdArr[3].querySelector(".expDiv").innerHTML.replace(/&gt;/g, ">").replace(/&lt;/g, "<")
+          let sliceEnd = trItem.querySelector(".expDiv").innerHTML.indexOf("<br><br>")
+          let translation = trItem.querySelector(".expDiv").innerHTML.replace(/&gt;/g, ">").replace(/&lt;/g, "<")
           if (sliceEnd > -1) {
-            translation = tdArr[3].querySelector(".expDiv").innerHTML.slice(0, sliceEnd)
+            translation = trItem.querySelector(".expDiv").innerHTML.slice(0, sliceEnd)
           }
           let wordObj = {
             id: trIndex + 1,
