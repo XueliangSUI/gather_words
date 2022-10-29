@@ -233,7 +233,7 @@ class App extends Component {
     return (
       <div className="WordSection1">
         <div className="content">
-          <h1 >词典单词本打印及导入背单词app——会词5.0</h1>
+          <h1 >词典单词本打印及导入背单词app——会词5.1</h1>
           <h1 >可将有道/欧路词典单词本中收藏的单词打印为word文档或导出至墨墨、扇贝、百词斩、不背等背单词App</h1>
         </div>
         <div className="content background_grey">
