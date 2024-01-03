@@ -73,3 +73,14 @@ table {
 .export_button {
     margin: 20px !important;
 }
+
+.manually_copy_word_wrap_wrap{
+    display: flex;
+}
+
+.manually_copy_word_wrap{
+    width: 350px;
+    border: 1px solid #555;
+    margin: 20px;
+    overflow-wrap: break-word;
+}

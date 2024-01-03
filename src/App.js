@@ -3,7 +3,7 @@ import React, { Component, createRef, useRef } from "react"
 import { TableBody, Header } from './Table'
 import _, { create, divide } from "lodash";
 import { Button, Alert, Snackbar, Grid } from '@mui/material';
-
+import { utils, writeFileXLSX } from "xlsx";
 import $ from 'jquery'
 // import jsPDF from "jspdf";
 import "./style.css"
@@ -39,6 +39,7 @@ class App extends Component {
     super(props)
     this.printRef = createRef()
     this.alertRef = createRef()
+    this.tableRef = createRef()
   }
   state = {
     wordsArr: [],
@@ -229,12 +230,15 @@ class App extends Component {
 
 
 
+
+
   render() {
     return (
       <div className="WordSection1">
         <div className="content">
-          <h1 >词典单词本打印及导入背单词app——会词5.1</h1>
-          <h1 >可将有道/欧路词典单词本中收藏的单词打印为word文档或导出至墨墨、扇贝、百词斩、不背等背单词App</h1>
+          <h1 >词典单词本打印及导入背单词app——会词6.0</h1>
+          <h1 >可将有道/欧路词典单词本中收藏的单词打印为Word/Excel文档或导出至墨墨、扇贝、百词斩、不背等背单词App</h1>
+          <h5>若遇到功能异常，请检查 1、从词典里导出的单词本的文件格式是否符合要求。 2、推荐使用Chrome/edge/360极速浏览器。3、若使用非微软的office软件打开导出的word/excel文件可能会造成排版混乱。4、检查有道/欧路词典是否为最新版本。5、若有无法排查的功能异常请在视频评论区留言或私信哔哩哔哩 唯一的观测者</h5>
         </div>
         <div className="content background_grey">
           <h5 >一、选择词典类型</h5>
@@ -275,41 +279,79 @@ class App extends Component {
           }
         </div>
         <div className="content background_grey">
-          <h5 >三、导入上一步导出的文件，并选择导出目的（若有bug / 建议 / 需求请哔哩哔哩私信 唯一的观测者）</h5>
+          <h5 >三、导入上一步导出的文件</h5>
           <div >
             <input type="file" id="file" onChange={() => { this.readFile() }} ref="wordsFile" />
           </div>
           <div >可添加备注：
             <input onChange={this.handelChange} value={this.state.note} />
           </div>
-          <Button variant="contained" onClick={() => { this.exportToWord() }}>
-            导出为word文档
-          </Button>
 
-          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.momo) }}>
-            <img src="momo.webp" className="export_to_logo"></img>导出至墨墨背单词
-          </Button>
-          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.bubei) }}>
-            <img src="bubei.webp" className="export_to_logo"></img> 导出至不背单词
-          </Button>
-          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.shanbei) }}>
-            <img src="shanbei.webp" className="export_to_logo"></img>导出至扇贝单词
-          </Button>
-          <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.baicizhan) }}>
-            <img src="baicizhan.webp" className="export_to_logo"></img> 导出至百词斩
-          </Button>
 
 
         </div>
         <div className="content ">
-          <h5 >四、在线预览</h5>
+          <h5 >四、选择导出方式</h5>
+          <div >
+            <Button variant="contained" onClick={() => { this.exportToWord() }}>
+              导出为word文档
+            </Button>
+            <Button variant="contained" className="export_button" onClick={() => {
+              const wb = utils.table_to_book(this.tableRef.current);
+              writeFileXLSX(wb, _.get(this.state.wordsArr, ["0", "tags"], "words") + ".xlsx");
+            }}>
+              导出为Excel文档
+            </Button>
+
+            <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.momo) }}>
+              <img src="momo.webp" className="export_to_logo"></img>导出至墨墨背单词
+            </Button>
+            <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.bubei) }}>
+              <img src="bubei.webp" className="export_to_logo"></img> 导出至不背单词
+            </Button>
+            <a href="https://www.bbdc.cn/">不背单词官网</a>
+            <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.shanbei) }}>
+              <img src="shanbei.webp" className="export_to_logo"></img>导出至扇贝单词
+            </Button>
+            <a href="https://web.shanbay.com/web/account/login/">扇贝单词官网</a>
+            <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.baicizhan) }}>
+              <img src="baicizhan.webp" className="export_to_logo"></img> 导出至百词斩
+            </Button>
+          </div>
+        </div>
+
+        <div className="content background_grey">
+          <h5 >五、手动复制及在线预览</h5>
+          <div className="manually_copy_word_wrap_wrap">
+            <div>
+
+
+              <div className="manually_copy_word_wrap">
+                可手动复制到墨墨、不背、扇贝单词：
+                {
+                  _.map(this.state.wordsArr, (item) => <div>{_.get(item, "word")}</div>)
+                }
+              </div>
+            </div>
+            <div>
+
+              <div className="manually_copy_word_wrap">
+                可手动复制到百词斩：
+                {
+                  _.map(this.state.wordsArr, (item) => <>{_.get(item, "word")},</>)
+                }
+              </div>
+            </div>
+          </div>
+
           <div id="print" ref={this.printRef}>
-            <table border="1" cellSpacing="0" >
+            <table border="1" cellSpacing="0" ref={this.tableRef}>
               <Header title={_.get(this.state.wordsArr, ["0", "tags"])} note={this.state.note}></Header>
               <TableBody id="table" tableData={this.state.wordsArr} paper={paper} printRef={this.printRef} />
             </table>
           </div>
         </div>
+
       </div >
     )
   }
