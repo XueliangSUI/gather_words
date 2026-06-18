@@ -454,33 +454,32 @@ class App extends Component {
           <h5 >二、从词典中导出指定格式文件</h5>
           {
             this.state.dictionaryType === dictionaryTypeOption.youdao ?
-              (<div >
-                <div >使用方法：1、打开PC端“网易有道词典”客户端，进入单词本页面，点击上方齿轮图标，在“导入导出”功能中选择“导出单词”</div>
-                <div ><img src="1.jpg" width={400}></img></div>
-                <div >2、选择导出的文件类型为<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>xml格式</span>，文件名随意。</div>
-                <div ><img src="2.jpg" width={400}></img></div>
-                <div >3、点击本页面最下方的“选择文件”按钮，选中上一步导出的<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>xml文件</span>，然后即可将单词导出为word文档。</div>
+              (<div>
+                <div className="instruction-step">使用方法：1、打开PC端"网易有道词典"客户端，进入单词本页面，点击上方齿轮图标，在"导入导出"功能中选择"导出单词"</div>
+                <div className="instruction-step"><img src="1.jpg" width={400}></img></div>
+                <div className="instruction-step">2、选择导出的文件类型为<span className="instruction-highlight">xml格式</span>，文件名随意。</div>
+                <div className="instruction-step"><img src="2.jpg" width={400}></img></div>
+                <div className="instruction-step">3、点击本页面最下方的"选择文件"按钮，选中上一步导出的<span className="instruction-highlight">xml文件</span>，然后即可将单词导出为word文档。</div>
 
-
-                <div style={{ color: '#aaa' }}>4、可能存在的异常（若无异常请忽略）：
+                <div className="instruction-note">4、可能存在的异常（若无异常请忽略）：
                   <div> 【1】若翻译栏中出现对应的英文单词，需删除该单词（及该单词后多余的翻译）<input type="checkbox" id="removeRepeatWordAndTranslation" /> </div>
 
                   <span> 【2】若翻译栏中的文字过多，只想保留指定字符数（会导致翻译内容缺失！） </span>
-                  <input type="number" style={{ width: '300px' }} placeholder="输入保留的字符数量" id="sliceTranslation" />
+                  <input type="number" placeholder="输入保留的字符数量" id="sliceTranslation" />
                 </div>
 
               </div>)
               :
-              (<div >
-                <div >使用方法：1、如图所示，注意导出格式为“HTML”、“简明解释”</div>
-                <div ><img src="image_eudic_step1.jpg" width={1300}></img></div>
-                <div >2、点击本页面最下方的“选择文件”按钮，选中上一步导出的<span style={{ fontWeight: 600, fontSize: "20px", color: "red" }}>html文件</span>，然后即可将单词导出为word文档。</div>
+              (<div>
+                <div className="instruction-step">使用方法：1、如图所示，注意导出格式为"HTML"、"简明解释"</div>
+                <div className="instruction-step"><img src="image_eudic_step1.jpg" width={1300}></img></div>
+                <div className="instruction-step">2、点击本页面最下方的"选择文件"按钮，选中上一步导出的<span className="instruction-highlight">html文件</span>，然后即可将单词导出为word文档。</div>
 
               </div>
               )
           }
         </div>
-        <div className="content background_grey">
+        <div className="content background_grey" id="import-area">
           <h5 >三、导入上一步导出的文件</h5>
           <div >
             <input type="file" id="file" onChange={() => { this.readFile() }} ref="wordsFile" />
@@ -508,11 +507,11 @@ class App extends Component {
             <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.bubei) }}>
               <img src="bubei.webp" className="export_to_logo"></img> 导出至不背单词
             </Button>
-            <a href="https://www.bbdc.cn/">不背单词官网</a>
+            <a href="https://www.bbdc.cn/" className="export_link">不背单词官网</a>
             <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.shanbei) }}>
               <img src="shanbei.webp" className="export_to_logo"></img>导出至扇贝单词
             </Button>
-            <a href="https://web.shanbay.com/web/account/login/">扇贝单词官网</a>
+            <a href="https://web.shanbay.com/web/account/login/" className="export_link">扇贝单词官网</a>
             <Button variant="contained" className="export_button" onClick={() => { this.exportToVocabularyApps(this.state.wordsArr, GLOBAL.baicizhan) }}>
               <img src="baicizhan.webp" className="export_to_logo"></img> 导出至百词斩
             </Button>
@@ -565,7 +564,7 @@ class App extends Component {
           </div>
 
           <div id="print" ref={this.printRef}>
-            <table border="1" cellSpacing="0" ref={this.tableRef}>
+            <table cellSpacing="0" ref={this.tableRef}>
               <Header title={_.get(this.state.wordsArr, ["0", "tags"])} note={this.state.note}></Header>
               <TableBody id="table" tableData={this.state.wordsArr} paper={paper} printRef={this.printRef} />
             </table>
