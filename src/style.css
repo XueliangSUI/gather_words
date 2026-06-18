@@ -20,12 +20,21 @@ table {
     font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
 }
 
+/* 隔行变色 */
+tbody tr:nth-child(odd) {
+    background-color: #F5F5F5;
+}
+
 /* tr{
     border-bottom: 1px solid #ccc;
 } */
 .tr {
     display: flex;
     border: 1px solid #aaa;
+}
+
+.td_index {
+    padding-left: 5px;
 }
 
 .td_word {
@@ -35,11 +44,13 @@ table {
 
 .td_phonetic {
     width: 20%;
+    padding-left: 5px;
 }
 
 .td_trans {
     width: 60%;
     white-space: pre-wrap;
+    padding-left: 5px;
 }
 
 .image_flex {
@@ -68,10 +79,20 @@ table {
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
+    height: 100px;
+    overflow-y: auto;
 }
 
 .export_button {
     margin: 20px !important;
+    transform: none !important;
+    transition: none !important;
+}
+
+.MuiButton-contained:hover {
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 .manually_copy_word_wrap_wrap{

@@ -3,13 +3,14 @@ import React, { Component, createRef, useRef } from "react"
 import { TableBody, Header } from './Table'
 import _, { create, divide } from "lodash";
 import { Button, Alert, Snackbar, Grid } from '@mui/material';
-import { utils, writeFileXLSX } from "xlsx";
+import JSZip from "jszip";
 import $ from 'jquery'
 // import jsPDF from "jspdf";
 import "./style.css"
 import "./jquery.wordexport"
 
 import { copyToClipboard } from "./util"
+import { parseTranslation, buildRichTextXml } from "./posHighlighter"
 
 const GLOBAL = {
   momo: "momo",
@@ -45,6 +46,8 @@ class App extends Component {
     wordsArr: [],
     note: "produced by theonlyobserver / 唯一的观测者",
     dictionaryType: dictionaryTypeOption.youdao,
+    showCopyMomo: false,
+    showCopyBaicizhan: false,
     alert: {
       show: false,
       msg: ""
@@ -196,6 +199,205 @@ class App extends Component {
     }
   }
 
+  // 导出为 Excel 文档（手动构建 xlsx，使用 JSZip 直接写入带富文本的 SST）
+  exportToExcel() {
+    const { wordsArr, note } = this.state
+    if (!wordsArr || wordsArr.length === 0) {
+      alert("请先导入单词文件")
+      return
+    }
+
+    var dateStr = new Date().toLocaleString()
+    var titleStr = _.get(wordsArr, ["0", "tags"], "words")
+    var noteStr = note || ''
+
+    // XML 转义（含控制字符处理）
+    function escXml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/\r/g, '&#13;')
+        .replace(/\n/g, '&#10;')
+        .replace(/\t/g, '&#9;')
+    }
+
+    // 构建 SST：所有需要在单元格中显示的字符串
+    //   0: ''           → headerRow[0]
+    //   1: titleStr     → headerRow[1]
+    //   2: dateStr      → headerRow[2]
+    //   3: noteStr      → headerRow[3]
+    //   4: 序号          → colLabel[0]
+    //   5: 单词          → colLabel[1]
+    //   6: 音标          → colLabel[2]
+    //   7: 翻译          → colLabel[3]
+    //   8+: data cells   → (rowIdx*4 + 0..3)
+
+    var sstItems = []
+
+    // Header info row
+    sstItems.push('<t></t>')                           // idx 0
+    sstItems.push('<t>' + escXml(titleStr) + '</t>')   // idx 1
+    sstItems.push('<t>' + escXml(dateStr) + '</t>')    // idx 2
+    sstItems.push('<t>' + escXml(noteStr) + '</t>')    // idx 3
+
+    // Column labels
+    sstItems.push('<t>序号</t>')  // idx 4
+    sstItems.push('<t>单词</t>')  // idx 5
+    sstItems.push('<t>音标</t>')  // idx 6
+    sstItems.push('<t>翻译</t>')  // idx 7
+
+    // Data rows — 翻译用富文本
+    var baseIdx = 8
+    wordsArr.forEach(function(row, rowIdx) {
+      sstItems.push('<t>' + escXml(String(rowIdx + 1)) + '</t>')
+      sstItems.push('<t>' + escXml((row.word || '').trim()) + '</t>')
+      sstItems.push('<t>' + escXml((row.phonetic || '').trim()) + '</t>')
+      // 翻译富文本
+      var transArr = row.transArr || []
+      var allSegments = []
+      transArr.forEach(function(tran, tIdx) {
+        if (tIdx > 0) allSegments.push({ text: '\n', isPos: false })
+        var segments = parseTranslation(tran)
+        Array.prototype.push.apply(allSegments, segments)
+      })
+      var richXml = buildRichTextXml(allSegments)
+      sstItems.push(richXml || '<r><t></t></r>')
+    })
+
+    // 组装 SST XML
+    var sstCount = sstItems.length
+    var sstXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' + sstCount + '" uniqueCount="' + sstCount + '">'
+    sstItems.forEach(function(item) {
+      sstXml += '<si>' + item + '</si>'
+    })
+    sstXml += '</sst>'
+
+    // 构建 sheet XML
+    // 列宽（Excel 字符宽度单位）
+    var COL_A_W = 5
+    var COL_B_W = 12.3
+    var COL_C_W = 15.4
+    var COL_D_W = 55
+
+    var sheetXml ='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n' +
+      '<cols>' +
+      '<col min="1" max="1" width="' + COL_A_W + '" customWidth="1"/>' +
+      '<col min="2" max="2" width="' + COL_B_W + '" customWidth="1"/>' +
+      '<col min="3" max="3" width="' + COL_C_W + '" customWidth="1"/>' +
+      '<col min="4" max="4" width="' + COL_D_W + '" customWidth="1"/>' +
+      '</cols>\n' +
+      '<sheetData>\n'
+
+    // Row 1: info header
+    sheetXml += '<row r="1">'
+    sheetXml += '<c r="A1" t="s" s="1"><v>0</v></c>'
+    sheetXml += '<c r="B1" t="s" s="1"><v>1</v></c>'
+    sheetXml += '<c r="C1" t="s" s="1"><v>2</v></c>'
+    sheetXml += '<c r="D1" t="s" s="1"><v>3</v></c>'
+    sheetXml += '</row>\n'
+
+    // Row 2: column labels
+    sheetXml += '<row r="2">'
+    sheetXml += '<c r="A2" t="s" s="1"><v>4</v></c>'
+    sheetXml += '<c r="B2" t="s" s="1"><v>5</v></c>'
+    sheetXml += '<c r="C2" t="s" s="1"><v>6</v></c>'
+    sheetXml += '<c r="D2" t="s" s="1"><v>7</v></c>'
+    sheetXml += '</row>\n'
+
+    // Data rows — 全部 SST，奇数行浅灰底色
+    wordsArr.forEach(function(row, rowIdx) {
+      var r = 3 + rowIdx
+      var idxBase = baseIdx + rowIdx * 4
+      var colA = 'A' + r, colB = 'B' + r, colC = 'C' + r, colD = 'D' + r
+      var styleIdx = (rowIdx % 2 === 0) ? '1' : '2' // 偶数行白底，奇数行浅灰
+      sheetXml += '<row r="' + r + '">'
+      sheetXml += '<c r="' + colA + '" t="s" s="' + styleIdx + '"><v>' + idxBase + '</v></c>'
+      sheetXml += '<c r="' + colB + '" t="s" s="' + styleIdx + '"><v>' + (idxBase + 1) + '</v></c>'
+      sheetXml += '<c r="' + colC + '" t="s" s="' + styleIdx + '"><v>' + (idxBase + 2) + '</v></c>'
+      sheetXml += '<c r="' + colD + '" t="s" s="' + styleIdx + '"><v>' + (idxBase + 3) + '</v></c>'
+      sheetXml += '</row>\n'
+    })
+
+    sheetXml += '</sheetData>\n</worksheet>'
+
+    // 其他必需的 XML 文件
+    var contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      '</Types>'
+
+    var relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>'
+
+    var workbookXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets>' +
+      '<sheet name="Sheet1" sheetId="1" r:id="rId1"/>' +
+      '</sheets>' +
+      '</workbook>'
+
+    var workbookRelsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>' +
+      '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>'
+
+    var stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="3">' +
+      '<fill><patternFill patternType="none"/></fill>' +
+      '<fill><patternFill patternType="gray125"/></fill>' +
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFF5F5F5"/></patternFill></fill>' +
+      '</fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>' +
+      '</cellStyleXfs>' +
+      '<cellXfs count="3">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' +
+      '<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyAlignment="1" applyFill="1"><alignment wrapText="1" vertical="top"/></xf>' +
+      '</cellXfs>' +
+      '</styleSheet>'
+
+    // 用 JSZip 打包
+    var zip = new JSZip()
+    zip.file('[Content_Types].xml', contentTypesXml)
+    zip.file('_rels/.rels', relsXml)
+    zip.file('xl/workbook.xml', workbookXml)
+    zip.file('xl/_rels/workbook.xml.rels', workbookRelsXml)
+    zip.file('xl/worksheets/sheet1.xml', sheetXml)
+    zip.file('xl/sharedStrings.xml', sstXml)
+    zip.file('xl/styles.xml', stylesXml)
+
+    zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }).then(function(blob) {
+      var url = window.URL.createObjectURL(blob)
+      var a = document.createElement('a')
+      a.href = url
+      a.download = titleStr + '.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    }).catch(function(err) {
+      console.error('Excel 导出失败:', err)
+      alert('Excel 导出失败，请重试')
+    })
+  }
+
   // 导出到墨墨/不背单词。从整理好的单词对象数组中仅获取单词
   exportToVocabularyApps = (list, appName) => {
     if (appName === GLOBAL.momo) {
@@ -236,7 +438,7 @@ class App extends Component {
     return (
       <div className="WordSection1">
         <div className="content">
-          <h1 >词典单词本打印及导入背单词app——会词6.0</h1>
+          <h1 >词典单词本打印及导入背单词app——会词7.0</h1>
           <h1 >可将有道/欧路词典单词本中收藏的单词打印为Word/Excel文档或导出至墨墨、扇贝、百词斩、不背等背单词App</h1>
           <h5>若遇到功能异常，请检查 1、从词典里导出的单词本的文件格式是否符合要求。 2、推荐使用Chrome/edge/360极速浏览器。3、若使用非微软的office软件打开导出的word/excel文件可能会造成排版混乱。4、检查有道/欧路词典是否为最新版本。5、若有无法排查的功能异常请在视频评论区留言或私信哔哩哔哩 唯一的观测者</h5>
         </div>
@@ -292,14 +494,11 @@ class App extends Component {
         </div>
         <div className="content ">
           <h5 >四、选择导出方式</h5>
-          <div >
+          <div className="export_button_wrap" >
             <Button variant="contained" onClick={() => { this.exportToWord() }}>
               导出为word文档
             </Button>
-            <Button variant="contained" className="export_button" onClick={() => {
-              const wb = utils.table_to_book(this.tableRef.current);
-              writeFileXLSX(wb, _.get(this.state.wordsArr, ["0", "tags"], "words") + ".xlsx");
-            }}>
+            <Button variant="contained" className="export_button" onClick={() => { this.exportToExcel() }}>
               导出为Excel文档
             </Button>
 
@@ -324,22 +523,43 @@ class App extends Component {
           <h5 >五、手动复制及在线预览</h5>
           <div className="manually_copy_word_wrap_wrap">
             <div>
-
-
               <div className="manually_copy_word_wrap">
                 可手动复制到墨墨、不背、扇贝单词：
-                {
-                  _.map(this.state.wordsArr, (item) => <div>{_.get(item, "word")}</div>)
-                }
+                <Button
+                  variant="outlined"
+                  size="small"
+                  style={{ marginLeft: 10 }}
+                  onClick={() => { this.setState({ showCopyMomo: !this.state.showCopyMomo }) }}
+                >
+                  {this.state.showCopyMomo ? '折叠' : '展开'}
+                </Button>
+                {this.state.showCopyMomo && (
+                  <div style={{ marginTop: 8 }}>
+                    {
+                      _.map(this.state.wordsArr, (item) => <div>{_.get(item, "word")}</div>)
+                    }
+                  </div>
+                )}
               </div>
             </div>
             <div>
-
               <div className="manually_copy_word_wrap">
                 可手动复制到百词斩：
-                {
-                  _.map(this.state.wordsArr, (item) => <>{_.get(item, "word")},</>)
-                }
+                <Button
+                  variant="outlined"
+                  size="small"
+                  style={{ marginLeft: 10 }}
+                  onClick={() => { this.setState({ showCopyBaicizhan: !this.state.showCopyBaicizhan }) }}
+                >
+                  {this.state.showCopyBaicizhan ? '折叠' : '展开'}
+                </Button>
+                {this.state.showCopyBaicizhan && (
+                  <div style={{ marginTop: 8 }}>
+                    {
+                      _.map(this.state.wordsArr, (item) => <>{_.get(item, "word")},</>)
+                    }
+                  </div>
+                )}
               </div>
             </div>
           </div>
